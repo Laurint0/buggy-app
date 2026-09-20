@@ -1,6 +1,6 @@
 def divide(a: float, b: float) -> float:
     """Divide a per b."""
-    return a * b  # <-- bug: dovrebbe essere a / b
+    return a / b
 
 
 def percentage(part: float, whole: float) -> float:
