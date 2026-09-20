@@ -30,6 +30,7 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-haiku-4-5-20251001
           prompt: |
             La pipeline CI di questo repository è fallita. Ecco il log dell'errore
             (contenuto del file failure.log nella working directory):
