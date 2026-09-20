@@ -1,4 +1,4 @@
-name: AI Auto-Fix su CI fallita
+name: AI Auto-Fix su CI fallita #
 
 on:
   workflow_run:
