@@ -1,0 +1,65 @@
+name: AI Auto-Fix su CI fallita
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ai-autofix:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Recupera il log del job fallito
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run view ${{ github.event.workflow_run.id }} --log-failed > failure.log
+
+      - name: Crea il branch di lavoro per l'AI
+        run: git checkout -b ai-fix/run-${{ github.event.workflow_run.id }}
+
+      - name: Claude Code analizza e corregge
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            La pipeline CI di questo repository è fallita. Ecco il log dell'errore
+            (contenuto del file failure.log nella working directory):
+            leggilo prima di fare qualsiasi cosa.
+
+            Analizza il codice sorgente coinvolto, individua la causa del fallimento
+            (bug logico, errore di sintassi, dipendenza mancante, regressione),
+            applica la correzione minima necessaria nel codice sorgente — NON
+            modificare i test a meno che siano palesemente sbagliati loro stessi —
+            e rilancia `pytest` per confermare che i test passino.
+            Non introdurre modifiche non richieste dal problema.
+          allowed_tools: "Edit,Read,Bash(pytest*),Bash(git*),Bash(cat*)"
+          max_turns: 8
+
+      - name: Apri la Pull Request se ci sono modifiche
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "ai-fix-bot"
+            git config user.email "ai-fix-bot@users.noreply.github.com"
+            git add -A
+            git commit -m "fix: correzione automatica AI per run ${{ github.event.workflow_run.id }}"
+            git push origin HEAD
+            gh pr create \
+              --title "🤖 Fix automatico AI per build fallita (run ${{ github.event.workflow_run.id }})" \
+              --body "Pull Request generata automaticamente da Claude Code in risposta a un fallimento della pipeline CI. **Verifica attentamente il diff prima del merge.**" \
+              --label "ai-generated" \
+              --base ${{ github.event.workflow_run.head_branch }}
+          else
+            echo "L'AI non ha prodotto modifiche: serve intervento manuale."
+            exit 1
+          fi
